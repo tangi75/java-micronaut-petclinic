@@ -1,12 +1,21 @@
-FROM oracle/graalvm-ce:19.2.0.1 as graalvm
-RUN gu install native-image
+FROM maven:3.5.4-jdk-8 as maven
 
 WORKDIR /work
-COPY ./target/micronaut-petclinic-*.jar .
-RUN native-image --no-server -cp micronaut-petclinic-*.jar
 
-FROM frolvlad/alpine-glibc
+# build all dependencies for offline use
+COPY pom.xml ./
+RUN mvn dependency:go-offline
+
+# build the app
+ADD src ./src/
+RUN mvn package
+RUN ls -l /work/target/
+
+FROM openjdk:8u171-jre-alpine
+
 EXPOSE 8080
 WORKDIR /app
-COPY --from=graalvm /work/petclinic .
-ENTRYPOINT ["/app/petclinic"]
+
+COPY --from=maven /work/target/micronaut-petclinic-*.jar .
+
+CMD ["java", "-jar", "micronaut-petclinic-0.1.0.BUILD-SNAPSHOT.jar"]
